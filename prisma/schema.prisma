@@ -1,0 +1,388 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  CANDIDATE
+  EMPLOYER
+  ADMIN
+}
+
+enum CareerLevel {
+  ENTRY
+  MID
+  SENIOR
+  EXECUTIVE
+}
+
+enum SkillCategory {
+  TECHNICAL
+  SOFT
+  LANGUAGE
+  TOOL
+}
+
+enum ProficiencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+}
+
+enum ListingType {
+  STANDARD
+  FEATURED
+  URGENT
+}
+
+enum JobStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  EXPIRED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  REVIEWED
+  SHORTLISTED
+  REJECTED
+  HIRED
+}
+
+enum TransactionType {
+  PURCHASE
+  UNLOCK_CONTACT
+  DOWNLOAD_CV
+  DIRECT_OUTREACH
+  SUBSCRIPTION_CREDIT
+  REFUND
+}
+
+enum SubscriptionPlan {
+  BASIC
+  PREMIUM
+  BUSINESS
+}
+
+enum UnlockType {
+  CONTACT_DETAILS
+  CV_DOWNLOAD
+  DIRECT_OUTREACH
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(CANDIDATE)
+  isVerified   Boolean  @default(false) @map("is_verified")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  candidate CandidateProfile?
+  employer  EmployerProfile?
+
+  @@map("users")
+}
+
+// ─── Candidate ────────────────────────────────────────────────────────────────
+
+model CandidateProfile {
+  id                    String      @id @default(cuid())
+  userId                String      @unique @map("user_id")
+  firstName             String      @map("first_name")
+  lastName              String      @map("last_name")
+  phone                 String?
+  location              String?
+  industrySector        String?     @map("industry_sector")
+  careerLevel           CareerLevel @default(ENTRY) @map("career_level")
+  headline              String?
+  bio                   String?     @db.Text
+  profilePhotoUrl       String?     @map("profile_photo_url")
+  profileCompletionScore Int        @default(0) @map("profile_completion_score")
+  isSearchable          Boolean     @default(true) @map("is_searchable")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workExperiences WorkExperience[]
+  educations      Education[]
+  skills          CandidateSkill[]
+  certifications  Certification[]
+  resumeVersions  ResumeVersion[]
+  applications    Application[]
+  profileUnlocks  ProfileUnlock[]
+  savedJobs       SavedJob[]
+
+  @@map("candidate_profiles")
+}
+
+model WorkExperience {
+  id           String    @id @default(cuid())
+  candidateId  String    @map("candidate_id")
+  companyName  String    @map("company_name")
+  jobTitle     String    @map("job_title")
+  startDate    DateTime  @map("start_date")
+  endDate      DateTime? @map("end_date")
+  isCurrent    Boolean   @default(false) @map("is_current")
+  description  String?   @db.Text
+  achievements String?   @db.Text
+  location     String?
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("work_experiences")
+}
+
+model Education {
+  id           String    @id @default(cuid())
+  candidateId  String    @map("candidate_id")
+  institution  String
+  degree       String
+  fieldOfStudy String?   @map("field_of_study")
+  startDate    DateTime  @map("start_date")
+  endDate      DateTime? @map("end_date")
+  grade        String?
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("educations")
+}
+
+model Skill {
+  id       String        @id @default(cuid())
+  name     String        @unique
+  category SkillCategory @default(TECHNICAL)
+
+  candidates CandidateSkill[]
+
+  @@map("skills")
+}
+
+model CandidateSkill {
+  candidateId String           @map("candidate_id")
+  skillId     String           @map("skill_id")
+  proficiency ProficiencyLevel @default(INTERMEDIATE)
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  skill     Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([candidateId, skillId])
+  @@map("candidate_skills")
+}
+
+model Certification {
+  id            String    @id @default(cuid())
+  candidateId   String    @map("candidate_id")
+  name          String
+  issuer        String
+  issueDate     DateTime? @map("issue_date")
+  expiryDate    DateTime? @map("expiry_date")
+  credentialUrl String?   @map("credential_url")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("certifications")
+}
+
+model ResumeVersion {
+  id               String      @id @default(cuid())
+  candidateId      String      @map("candidate_id")
+  versionNumber    Int         @map("version_number")
+  targetSector     String?     @map("target_sector")
+  targetRole       String?     @map("target_role")
+  careerLevel      CareerLevel @map("career_level")
+  generatedContent Json        @map("generated_content")
+  templateId       String      @default("default") @map("template_id")
+  pdfUrl           String?     @map("pdf_url")
+  isActive         Boolean     @default(false) @map("is_active")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("resume_versions")
+}
+
+// ─── Employer ─────────────────────────────────────────────────────────────────
+
+model EmployerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique @map("user_id")
+  companyName String   @map("company_name")
+  industry    String?
+  companySize String?  @map("company_size")
+  website     String?
+  description String?  @db.Text
+  logoUrl     String?  @map("logo_url")
+  isVerified  Boolean  @default(false) @map("is_verified")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditAccount   CreditAccount?
+  jobListings     JobListing[]
+  profileUnlocks  ProfileUnlock[]
+  savedCandidates SavedCandidate[]
+  subscriptions   Subscription[]
+
+  @@map("employer_profiles")
+}
+
+// ─── Credits ──────────────────────────────────────────────────────────────────
+
+model CreditAccount {
+  id         String   @id @default(cuid())
+  employerId String   @unique @map("employer_id")
+  balance    Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  employer     EmployerProfile    @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  transactions CreditTransaction[]
+
+  @@map("credit_accounts")
+}
+
+model CreditTransaction {
+  id              String          @id @default(cuid())
+  creditAccountId String          @map("credit_account_id")
+  amount          Int
+  type            TransactionType
+  referenceId     String?         @map("reference_id")
+  description     String
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  creditAccount CreditAccount @relation(fields: [creditAccountId], references: [id], onDelete: Cascade)
+
+  @@map("credit_transactions")
+}
+
+model CreditPackage {
+  id       String  @id @default(cuid())
+  name     String
+  credits  Int
+  priceMyr Decimal @db.Decimal(10, 2) @map("price_myr")
+  isActive Boolean @default(true) @map("is_active")
+
+  @@map("credit_packages")
+}
+
+model Subscription {
+  id                   String           @id @default(cuid())
+  employerId           String           @map("employer_id")
+  plan                 SubscriptionPlan
+  monthlyPrice         Decimal          @db.Decimal(10, 2) @map("monthly_price")
+  includedCredits      Int              @map("included_credits")
+  billingCycleStart    DateTime         @map("billing_cycle_start")
+  billingCycleEnd      DateTime         @map("billing_cycle_end")
+  isActive             Boolean          @default(true) @map("is_active")
+  stripeSubscriptionId String?          @map("stripe_subscription_id")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  employer EmployerProfile @relation(fields: [employerId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+model JobListing {
+  id              String      @id @default(cuid())
+  employerId      String      @map("employer_id")
+  title           String
+  description     String      @db.Text
+  requirements    String?     @db.Text
+  location        String
+  jobType         JobType     @default(FULL_TIME) @map("job_type")
+  industrySector  String?     @map("industry_sector")
+  careerLevel     CareerLevel? @map("career_level")
+  salaryMin       Decimal?    @db.Decimal(10, 2) @map("salary_min")
+  salaryMax       Decimal?    @db.Decimal(10, 2) @map("salary_max")
+  isSalaryVisible Boolean     @default(false) @map("is_salary_visible")
+  listingType     ListingType @default(STANDARD) @map("listing_type")
+  status          JobStatus   @default(DRAFT)
+  expiresAt       DateTime?   @map("expires_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  employer     EmployerProfile @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  applications Application[]
+  savedBy      SavedJob[]
+
+  @@map("job_listings")
+}
+
+model Application {
+  id          String            @id @default(cuid())
+  candidateId String            @map("candidate_id")
+  jobId       String            @map("job_id")
+  status      ApplicationStatus @default(APPLIED)
+  coverLetter String?           @db.Text @map("cover_letter")
+  appliedAt   DateTime          @default(now()) @map("applied_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job       JobListing       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, jobId])
+  @@map("applications")
+}
+
+// ─── Interactions ─────────────────────────────────────────────────────────────
+
+model ProfileUnlock {
+  id           String     @id @default(cuid())
+  employerId   String     @map("employer_id")
+  candidateId  String     @map("candidate_id")
+  unlockType   UnlockType @map("unlock_type")
+  creditsSpent Int        @map("credits_spent")
+  unlockedAt   DateTime   @default(now()) @map("unlocked_at")
+
+  employer  EmployerProfile  @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("profile_unlocks")
+}
+
+model SavedCandidate {
+  employerId  String   @map("employer_id")
+  candidateId String   @map("candidate_id")
+  savedAt     DateTime @default(now()) @map("saved_at")
+  notes       String?
+
+  employer EmployerProfile @relation(fields: [employerId], references: [id], onDelete: Cascade)
+
+  @@id([employerId, candidateId])
+  @@map("saved_candidates")
+}
+
+model SavedJob {
+  candidateId String   @map("candidate_id")
+  jobId       String   @map("job_id")
+  savedAt     DateTime @default(now()) @map("saved_at")
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job       JobListing       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([candidateId, jobId])
+  @@map("saved_jobs")
+}
